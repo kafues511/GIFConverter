@@ -86,6 +86,10 @@ def simple_sample(filename:Union[str, Path]) -> None:
     if filename.suffix != ".mp4":
         return None
 
+    # read errorはwithで無視されちゃうのでここで止めておく
+    if not filename.is_file():
+        return None
+
     input_path = filename
     output_path = filename.with_suffix(".gif")
 
@@ -93,6 +97,7 @@ def simple_sample(filename:Union[str, Path]) -> None:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
+        frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         images:list[Image.Image] = []
 
@@ -106,6 +111,10 @@ def simple_sample(filename:Union[str, Path]) -> None:
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
             image = image_quantize(image, method=Image.Quantize.MEDIANCUT)
             images.append(image)
+
+    # 読込欠損発生
+    if len(images) != frames:
+        return None
 
     images[0].save(str(output_path), save_all=True, append_images=images[1:], optimize=False, duration=1.0 / fps * 1000.0, loop=0)
 
