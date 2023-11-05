@@ -29,22 +29,71 @@ def image_quantize(
     return image.convert(mode)
 
 
-class CustomVideoCapture(cv2.VideoCapture):
-    def __enter__(self) -> "CustomVideoCapture":
+class WithVideoCapture:
+    """with対応なcv2.VideoCapture
+    """
+    def __init__(self, filename:str) -> None:
+        """コンストラクタ
+
+        Args:
+            filename (str): 動画のファイルパス
+        """
+        self.cap = cv2.VideoCapture(filename)
+
+    def __enter__(self) -> "WithVideoCapture":
+        # NOTE: 一部プロパティはreadし終えてから読み込むと0.0になります。
+        self.__width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.__height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.__fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.__frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.__frame = -1
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        try:
-            self.release()
-        except Exception:
-            pass
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.cap.release()
+
+    @property
+    def width(self) -> int:
+        """画像の横幅を取得
+
+        Returns:
+            int: 画像の横幅
+        """
+        return self.__width
+
+    @property
+    def height(self) -> int:
+        """画像の縦幅を取得
+
+        Returns:
+            int: 画像の縦幅
+        """
+        return self.__height
+
+    @property
+    def fps(self) -> float:
+        """フレームレートを取得
+
+        Returns:
+            float: フレームレート
+        """
+        return self.__fps
+
+    @property
+    def frames(self) -> int:
+        """総フレーム数を取得
+
+        Returns:
+            int: 総フレーム数
+        """
+        return self.__frames
 
     @property
     def retval(self) -> bool:
-        """最後にread()した結果を取得します。
+        """最後のread結果を取得
 
         Returns:
-            bool: 最後にread()した結果
+            bool: 読込に成功した場合はTrueを返します。
         """
         try:
             return self.__retval
@@ -53,23 +102,38 @@ class CustomVideoCapture(cv2.VideoCapture):
 
     @property
     def image(self) -> Optional[np.ndarray]:
-        """最後にread()で読み込んだ画像を取得します。
+        """最後のreadで読み込んだ画像を取得
 
         Returns:
-            Optional[np.ndarray]: 最後にread()で取得した画像データ
+            Optional[np.ndarray]: 読み込みに成功した場合は画像データを返します。
         """
         try:
             return self.__image
         except Exception:
             return None
 
-    def read(self) -> bool:
-        """cv2.VideoCapture.read()と同様
+    @property
+    def frame(self) -> int:
+        """現在のフレーム数を取得
+
+        readするたびに進みます。
 
         Returns:
-            bool: cv2.VideoCapture.read()の結果
+            int: 現在のフレーム数、又は一度もreadしていない場合は-1を返します。
         """
-        self.__retval, self.__image = super().read()
+        try:
+            return self.__frame
+        except Exception:
+            return -1
+
+    def read(self) -> bool:
+        """読込
+
+        Returns:
+            bool: 読込結果
+        """
+        self.__retval, self.__image = self.cap.read()
+        self.__frame += 1
         return self.retval
 
 
@@ -93,17 +157,12 @@ def simple_sample(filename:Union[str, Path]) -> None:
     input_path = filename
     output_path = filename.with_suffix(".gif")
 
-    with CustomVideoCapture(str(input_path)) as cap:
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
+    with WithVideoCapture(str(input_path)) as cap:
         images:list[Image.Image] = []
 
         # apply scale.
-        width = width - width//2
-        height = height - height//2
+        width = cap.width - cap.width//2
+        height = cap.height - cap.height//2
 
         while cap.read():
             image = cap.image
@@ -113,10 +172,10 @@ def simple_sample(filename:Union[str, Path]) -> None:
             images.append(image)
 
     # 読込欠損発生
-    if len(images) != frames:
+    if len(images) != cap.frames:
         return None
 
-    images[0].save(str(output_path), save_all=True, append_images=images[1:], optimize=False, duration=1.0 / fps * 1000.0, loop=0)
+    images[0].save(str(output_path), save_all=True, append_images=images[1:], optimize=False, duration=1.0 / cap.fps * 1000.0, loop=0)
 
 
 if __name__ == "__main__":
