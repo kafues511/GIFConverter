@@ -1,2 +1,6 @@
 opencv-python==4.8.1.78
 Pillow==10.0.1
+
+# vvv [needed for exe build] vvvv
+# ttkbootstrap==1.10.1
+# cx-Freeze==6.15.10
