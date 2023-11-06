@@ -20,7 +20,7 @@ exe = Executable(
 
 setup(
     name="GIFConverter",
-    version="0.0.0",
+    version="0.1.0",
     description="convert to gif.",
     options={"build_exe": build_exe_options},
     executables=[exe],
