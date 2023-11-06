@@ -266,20 +266,20 @@ class GIFConverter:
             quantized_callback (Optional[Callable[[list[Image.Image], float], None]], optional): 量子化後のコールバック. Defaults to None.
             exported_callback (Optional[Callable[[bool], None]], optional): GIF出力後のコールバック. Defaults to None.
         """
-        # 量子化プロセスの入出力用
+        # 量子化スレッドの入出力用
         input_queue = mp.Queue()
         output_queue = mp.Queue()
 
-        # 量子化プロセスリスト
+        # 量子化スレッドリスト
         # NOTE: 元はプロセスだけどtkinterとの相性問題でスレッドに変更.
-        processes:list[mp.Process] = []
+        threads:list[th.Thread] = []
 
         # 動画読込
         with WithVideoCapture(info.input_path) as cap:
             # プロセスの立ち上げ
             for _ in range(info.num_workers):
                 if info.resize != 1.0:
-                    process = th.Thread(
+                    thread = th.Thread(
                         target=GIFConverter.update_image_scale_quantize,
                         args=(
                             input_queue,
@@ -292,7 +292,7 @@ class GIFConverter:
                         daemon=True,
                     )
                 else:
-                    process = th.Thread(
+                    thread = th.Thread(
                         target=GIFConverter.update_image_quantize,
                         args=(
                             input_queue,
@@ -301,14 +301,14 @@ class GIFConverter:
                         ),
                         daemon=True,
                     )
-                process.start()
-                processes.append(process)
+                thread.start()
+                threads.append(thread)
 
             # 画像をキューに突っ込む
             while cap.read():
                 input_queue.put((cap.frame, cv2.cvtColor(cap.image, cv2.COLOR_BGRA2RGB)))
 
-        # 量子化プロセスの終了合図を送信
+        # 量子化スレッドの終了合図を送信
         for _ in range(info.num_workers):
             input_queue.put(None)
 
