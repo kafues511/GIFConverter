@@ -4,6 +4,8 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.tooltip import ToolTip
 
+from pathlib import Path
+
 from editor.grid_util import *
 
 
@@ -42,7 +44,8 @@ class OutputGifFile:
 
     def on_browse(self) -> None:
         if (path:=asksaveasfilename(title="保存", filetypes=self.FILETYPES)):
-            self.path_var.set(path)
+            safe_path = str(Path(path).with_suffix(".gif"))
+            self.path_var.set(safe_path)
 
     @property
     def path(self) -> str:

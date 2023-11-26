@@ -130,6 +130,7 @@ class GIFExportInfo:
     output_path:str
     resize:float
     quantize_method:int
+    quantize_kmeans:int
     play_speed:float
     num_workers:int
 
@@ -200,10 +201,11 @@ class GIFConverter:
         output_path:Union[Path, str],
         resize:float,
         quantize_method:int,
+        quantize_kmenas:int,
         play_speed:float,
         num_workers:int,
         quantized_callback:Optional[Callable[[list[Image.Image], float], None]] = None,
-        exported_callback:Optional[Callable[[bool], None]] = None,
+        exported_callback:Optional[Callable[[bool, str], None]] = None,
     ) -> bool:
         """[MainThread] GIF変換と出力
 
@@ -212,10 +214,11 @@ class GIFConverter:
             output_path (Union[Path, str]): GIFの出力パス
             resize (float): リサイズ
             quantize_method (int): 量子化の種類
+            quantize_kmeans (int): クラスタ数
             play_speed (float): 再生速度
             num_workers (int): 量子化処理のワーカー数
             quantized_callback (Optional[Callable[[list[Image.Image], float], None]], optional): 量子化後のコールバック. Defaults to None.
-            exported_callback (Optional[Callable[[bool], None]], optional): GIF出力後のコールバック. Defaults to None.
+            exported_callback (Optional[Callable[[bool, str], None]], optional): GIF出力後のコールバック. Defaults to None.
 
         Returns:
             bool: スレッドの立ち上げに成功した場合はTrueを返します。
@@ -241,6 +244,7 @@ class GIFConverter:
                     output_path,
                     resize,
                     quantize_method,
+                    quantize_kmenas,
                     play_speed,
                     num_workers,
                 ),
@@ -257,14 +261,14 @@ class GIFConverter:
         self,
         info:GIFExportInfo,
         quantized_callback:Optional[Callable[[list[Image.Image], float], None]] = None,
-        exported_callback:Optional[Callable[[bool], None]] = None,
+        exported_callback:Optional[Callable[[bool, str], None]] = None,
     ) -> None:
         """[Thread-N] GIF変換と出力
 
         Args:
             info (GIFExportInfo): GIF変換、出力情報
             quantized_callback (Optional[Callable[[list[Image.Image], float], None]], optional): 量子化後のコールバック. Defaults to None.
-            exported_callback (Optional[Callable[[bool], None]], optional): GIF出力後のコールバック. Defaults to None.
+            exported_callback (Optional[Callable[[bool, str], None]], optional): GIF出力後のコールバック. Defaults to None.
         """
         # 量子化スレッドの入出力用
         input_queue = mp.Queue()
@@ -288,6 +292,7 @@ class GIFConverter:
                             int(cap.height * info.resize),
                             cv2.INTER_AREA,
                             info.quantize_method,
+                            info.quantize_kmeans,
                         ),
                         daemon=True,
                     )
@@ -298,6 +303,7 @@ class GIFConverter:
                             input_queue,
                             output_queue,
                             info.quantize_method,
+                            info.quantize_kmeans,
                         ),
                         daemon=True,
                     )
@@ -334,7 +340,7 @@ class GIFConverter:
 
         # GIF出力後のコールバックが登録されている場合は、成否を渡します。
         if exported_callback is not None:
-            exported_callback(is_success)
+            exported_callback(is_success, info.output_path)
 
     @staticmethod
     def update_image_scale_quantize(
@@ -344,6 +350,7 @@ class GIFConverter:
         height:int,
         interpolation:int,
         quantize_method:int,
+        quantize_kmeans:int,
     ) -> None:
         """画像のリサイズと量子化
 
@@ -356,6 +363,7 @@ class GIFConverter:
             height (int): リサイズ後の縦幅
             interpolation (int): リサイズの補間方法
             quantize_method (int): 量子化の種類
+            quantize_kmeans (int): クラスタ数
         """
         while True:
             # Noneを受け取るまで仕事をします.
@@ -365,7 +373,7 @@ class GIFConverter:
             # リサイズ後に量子化を行います.
             frame, image = values
             image = cv2.resize(image, (width, height), interpolation=interpolation)
-            image = GIFConverter.image_quantize(image, method=quantize_method)
+            image = GIFConverter.image_quantize(image, method=quantize_method, kmeans=quantize_kmeans)
 
             # 加工結果を送信します.
             output_queue.put((frame, image))
@@ -375,6 +383,7 @@ class GIFConverter:
         input_queue:mp.Queue,
         output_queue:mp.Queue,
         quantize_method:int,
+        quantize_kmeans:int,
     ) -> None:
         """画像の量子化
 
@@ -382,6 +391,7 @@ class GIFConverter:
             input_queue (mp.Queue): 画像の入力キュー
             output_queue (mp.Queue): 画像の出力キュー
             quantize_method (int): 量子化の種類
+            quantize_kmeans (int): クラスタ数
         """
         while True:
             # Noneを受け取るまで仕事をします。
@@ -390,7 +400,7 @@ class GIFConverter:
 
             # 量子化を行います。
             frame, image = values
-            image = GIFConverter.image_quantize(image, method=quantize_method)
+            image = GIFConverter.image_quantize(image, method=quantize_method, kmeans=quantize_kmeans)
 
             # 加工結果を送信します。
             output_queue.put((frame, image))
@@ -400,6 +410,7 @@ class GIFConverter:
         image:np.ndarray,
         colors:int=256,
         method:int=Image.Quantize.MEDIANCUT,
+        kmeans:int=0,
         dither:int=Image.Dither.NONE,
         mode:str="RGB",
     ) -> Image.Image:
@@ -409,6 +420,7 @@ class GIFConverter:
             image (np.ndarray): 入力画像(RGB配置を想定)
             colors (int, optional): 減色後の色数. Defaults to 256.
             method (int, optional): 量子化の種類. Defaults to Image.Quantize.MEDIANCUT.
+            kmeans (int, optional): クラスタ数. Defaults to 0.
             dither (int, optional): ディザの種類. Defaults to Image.Dither.NONE.
             mode (str, optional): 出力結果の形式. Defaults to "RGB".
 
@@ -416,5 +428,5 @@ class GIFConverter:
             Image.Image: 量子化された画像
         """
         image:Image.Image = Image.fromarray(image, mode=mode)
-        image = image.quantize(colors=colors, method=method, dither=dither)
+        image = image.quantize(colors=colors, method=method, kmeans=kmeans, dither=dither)
         return image.convert(mode)

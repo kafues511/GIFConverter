@@ -11,6 +11,29 @@ from editor.grid_util import *
 from runtime.gif_converter import GIFConverter
 
 
+class RowCounter:
+    """行数カウンタ
+    """
+    def __init__(self) -> None:
+        self.row = 0
+
+    def __call__(self, is_readonly:bool=False) -> int:
+        """現在の行数を取得します。
+
+        取得するたびに行数がカウントされます。
+
+        Args:
+            is_readonly (bool, optional): カウントしない場合はTrueを指定します。. Defaults to False.
+
+        Returns:
+            int: 現在の行数
+        """
+        ret = self.row
+        if not is_readonly:
+            self.row += 1
+        return ret
+
+
 class GIFConverterControlFrame(ttk.Frame):
     def __init__(
         self,
@@ -20,18 +43,22 @@ class GIFConverterControlFrame(ttk.Frame):
     ) -> None:
         super().__init__(master, relief=RAISED, padding=10)
 
-        self.input_video_file = InputVideoFile(self, column=(0, 0, 1), row=0, columnspan=(1, 2, 1), callback_path_update=self.update_input_path)
-        self.quantize_method = QuantizeMethod(self, column=0, row=1, columnspan=(1, 1, 1))
-        self.image_resize = ImageResize(self, column=(0, 0), row=2, columnspan=(1, 2))
-        self.play_speed = PlaySpeed(self, column=(0, 0), row=3, columnspan=(1, 2))
-        self.output_gif_file = OutputGifFile(self, column=(0, 0, 1), row=4, columnspan=(1, 2, 1))
-        self.export_state = ExportState(self, column=(0, 0, 1), row=5, columnspan=(1, 2, 1), callback_export=callback_gif_export)
+        row = RowCounter()
+
+        self.input_video_file = InputVideoFile(self, column=(0, 0, 1), row=row(), columnspan=(1, 2, 1), callback_path_update=self.update_input_path)
+        self.quantize_method = QuantizeMethod(self, column=0, row=row(), columnspan=(1, 1, 1))
+        self.quantize_kmeans = QuantizeKMeans(self, column=0, row=row(), columnspan=(1, 2, 1))
+        self.image_resize = ImageResize(self, column=(0, 0), row=row(), columnspan=(1, 2))
+        self.play_speed = PlaySpeed(self, column=(0, 0), row=row(), columnspan=(1, 2))
+        self.output_gif_file = OutputGifFile(self, column=(0, 0, 1), row=row(), columnspan=(1, 2, 1))
+        self.export_file_size = ExportFileSize(self, column=0, row=row(), columnspan=(1, 2))
+        self.export_state = ExportState(self, column=(0, 0, 1), row=row(), columnspan=(1, 2, 1), callback_export=callback_gif_export)
 
         # register callback.
         self.callback_export_ready = callback_export_ready
 
         self.grid_columnconfigure([i for i in range(4)], weight=1)
-        self.grid_rowconfigure([i for i in range(6)], weight=1)
+        self.grid_rowconfigure([i for i in range(row(True))], weight=1)
 
     def update_input_path(self, input_path:str) -> None:
         """入力パスの更新
@@ -116,6 +143,15 @@ class GIFConverterEditor(ttk.Window):
         return self.control_frame.quantize_method.quantize_method
 
     @property
+    def quantize_kmeans(self) -> int:
+        """クラスタ数を取得
+
+        Returns:
+            int: クラスタ数
+        """
+        return self.control_frame.quantize_kmeans.kmeans
+
+    @property
     def play_speed(self) -> float:
         """再生速度を取得
 
@@ -174,13 +210,39 @@ class GIFConverterEditor(ttk.Window):
         """
         self.preview_frame.image_view.set_images(images, duration)
 
-    def update_export_state(self, is_success:bool) -> None:
+    @staticmethod
+    def get_display_name_file_size(st_size:int) -> str:
+        """ファイルサイズを表示名で取得します。
+
+        Args:
+            st_size (int): ファイルサイズ
+
+        Returns:
+            str: 未対応の単位や不正なファイルサイズを入力した場合は Unknown と表示されます。
+        """
+        try:
+            for unit in ["Byte", "KB", "MB", "GB", "TB"]:
+                if st_size < 1024.0:
+                    return f"{st_size:.2f} {unit}"
+                st_size /= 1024.0
+        except Exception as e:
+            pass
+
+        return "Unknown"
+
+    def update_export_state(self, is_success:bool, output_path:str) -> None:
         """Export状態の更新
 
         Args:
             is_success (bool): 出力結果の成否
+            output_path (str): 出力先のパス
         """
         self.control_frame.export_state.end(is_success)
+        if is_success:
+            st_size = Path(output_path).stat().st_size
+            self.control_frame.export_file_size.filesize_var.set(self.get_display_name_file_size(st_size))
+        else:
+            self.control_frame.export_file_size.filesize_var.set("nan")
 
     def gif_export(self) -> None:
         """GIF作成
@@ -196,6 +258,7 @@ class GIFConverterEditor(ttk.Window):
             output_path,
             self.image_resize,
             self.quantize_method,
+            self.quantize_kmeans,
             self.play_speed,
             8,
             self.set_preview_images,

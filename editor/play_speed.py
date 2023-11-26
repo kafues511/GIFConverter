@@ -20,7 +20,7 @@ class PlaySpeed:
         column:Union[int, tuple[int, int]],
         row:Union[int, tuple[int, int]],
         columnspan:Union[int, tuple[int, int]] = (1, 1),
-        sticky:Union[str, tuple[str, str, str]] = (EW, EW),
+        sticky:Union[str, tuple[str, str]] = (EW, EW),
         *args,
         **kwargs,
     ) -> None:
