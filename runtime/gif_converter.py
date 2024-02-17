@@ -428,5 +428,6 @@ class GIFConverter:
             Image.Image: 量子化された画像
         """
         image:Image.Image = Image.fromarray(image, mode=mode)
-        image = image.quantize(colors=colors, method=method, kmeans=kmeans, dither=dither)
+        if method != -1:
+            image = image.quantize(colors=colors, method=method, kmeans=kmeans, dither=dither)
         return image.convert(mode)

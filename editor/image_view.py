@@ -6,8 +6,6 @@ import threading as th
 from PIL import Image, ImageTk
 from itertools import cycle
 
-from editor.grid_util import *
-
 
 __all__ = [
     "ImageView",
@@ -20,21 +18,26 @@ class ImageView:
         master:tk.Misc,
         column:int,
         row:int,
-        columnspan:int = 1,
-        sticky:str = NSEW,
     ) -> None:
-        grid = GridUtil(column, row, columnspan, sticky)
-
         self.master = master
 
         self.lock = th.Lock()
 
+        self.item_id:int = None
         self.image:ImageTk.PhotoImage = None
         self.image_cylcle:cycle = None
         self.duration:int = 33
 
-        self.view = ttk.Label(master)
-        self.view.grid(column=grid.column, row=grid.row, columnspan=grid.columnspan, sticky=grid.sticky)
+        self.canvas = ttk.Canvas(master)
+        self.canvas.grid(column=column, row=row, sticky=NSEW)
+
+        self.yview = ttk.Scrollbar(master, orient=VERTICAL, command=self.canvas.yview)
+        self.yview.grid(column=column+1, row=row, sticky=NS)
+
+        self.xview = ttk.Scrollbar(master, orient=HORIZONTAL, command=self.canvas.xview)
+        self.xview.grid(column=column, row=row+1, sticky=EW)
+
+        self.canvas.configure(xscrollcommand=self.xview.set, yscrollcommand=self.yview.set)
 
         self.update_image()
 
@@ -62,5 +65,10 @@ class ImageView:
 
             self.lock.release()
 
-            self.view.configure(image=self.image)
+            if self.item_id is None:
+                self.item_id = self.canvas.create_image(0, 0, anchor=NW, image=self.image)
+            else:
+                self.canvas.itemconfig(self.item_id, image=self.image)
+
+            self.canvas.configure(width=self.image.width(), height=self.image.height(), scrollregion=(0, 0, self.image.width(), self.image.height()))
             self.master.after(self.duration, self.update_image)

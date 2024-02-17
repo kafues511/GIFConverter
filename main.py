@@ -46,7 +46,7 @@ class GIFConverterControlFrame(ttk.Frame):
         row = RowCounter()
 
         self.input_video_file = InputVideoFile(self, column=(0, 0, 1), row=row(), columnspan=(1, 2, 1), callback_path_update=self.update_input_path)
-        self.quantize_method = QuantizeMethod(self, column=0, row=row(), columnspan=(1, 1, 1))
+        self.quantize_method = QuantizeMethod(self, column=0, row=row(), columnspan=(1, 1, 1, 1))
         self.quantize_kmeans = QuantizeKMeans(self, column=0, row=row(), columnspan=(1, 2, 1))
         self.image_resize = ImageResize(self, column=(0, 0), row=row(), columnspan=(1, 2))
         self.play_speed = PlaySpeed(self, column=(0, 0), row=row(), columnspan=(1, 2))
@@ -81,7 +81,7 @@ class GIFPreviewFrame(ttk.Frame):
     def __init__(self, master:tk.Misc) -> None:
         super().__init__(master, relief=RAISED, padding=10)
 
-        self.image_view = ImageView(self, column=0, row=0, columnspan=1, sticky=NSEW)
+        self.image_view = ImageView(self, column=0, row=0)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -89,7 +89,7 @@ class GIFPreviewFrame(ttk.Frame):
 
 class GIFConverterEditor(ttk.Window):
     def __init__(self) -> None:
-        super().__init__("GIFConverter", minsize=(640, 278))
+        super().__init__("GIFConverter", minsize=(640, 278), maxsize=(1152, 864))
 
         # GIFConverter
         self.gif_converter = GIFConverter()
@@ -103,7 +103,6 @@ class GIFConverterEditor(ttk.Window):
         self.preview_frame.grid(column=0, row=1, padx=10, pady=(0, 10), sticky=NSEW)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
     @property
